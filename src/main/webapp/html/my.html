@@ -6,6 +6,58 @@
 </head>
 <body>
 <h1>RPG admin panel</h1>
+<table id="charactersTable">
+    <thead>
+    <tr>
+        <th>#</th>
+        <th>Name</th>
+        <th>Title</th>
+        <th>Race</th>
+        <th>Profession</th>
+        <th>Level</th>
+        <th>Birthday</th>
+        <th>Banned</th>
+    </tr>
+    </thead>
+</table>
 
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+
+        fetch('/rest/players')
+            .then(response => {
+            if (!response.ok) {
+                throw new Error('Ошибка при получении данных');
+            }
+            return response.json();
+        })
+            .then(data => {
+            const table = document.getElementById("charactersTable");
+            const tbody = document.createElement("tbody");
+
+            data.forEach((char, index) => {
+                const row = document.createElement("tr");
+
+                row.innerHTML = `
+                    <td>${char.id ?? index + 1}</td>
+                    <td>${char.name}</td>
+                    <td>${char.title}</td>
+                    <td>${char.race}</td>
+                    <td>${char.profession}</td>
+                    <td>${char.level}</td>
+                    <td>${char.birthday}</td>
+                    <td>${char.banned ? "Yes" : "No"}</td>
+                `;
+
+                tbody.appendChild(row);
+            });
+
+            table.appendChild(tbody);
+        })
+            .catch(error => {
+            console.error('Ошибка:', error);
+        });
+    });
+</script>
 </body>
 </html>
