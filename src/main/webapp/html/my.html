@@ -6,6 +6,15 @@
 </head>
 <body>
 <h1>RPG admin panel</h1>
+
+<div>
+    Show
+    <select id="recordsPerPage">
+
+    </select>
+    records for page
+</div>
+
 <table id="charactersTable">
     <thead>
     <tr>
@@ -17,46 +26,337 @@
         <th>Level</th>
         <th>Birthday</th>
         <th>Banned</th>
+        <th>Edit</th>
+        <th>Delete</th>
     </tr>
     </thead>
+    <tbody>
+    </tbody>
 </table>
+<div class="pagination" id="pagination">
+
+</div>
+
+<div id="createPlayer" class="create-player">
+    <h3>Create new player</h3>
+
+    <label>Name:
+        <input type="text" id="newName" minlength="1" maxlength="12">
+    </label>
+
+    <label>Title:
+        <input type="text" id="newTitle" minlength="1" maxlength="30">
+    </label>
+
+    <label>Race:
+        <select id="newRace"></select>
+    </label>
+
+    <label>Profession:
+        <select id="newProfession"></select>
+    </label>
+
+    <label>Level:
+        <input type="number" id="newLevel" min="1" max="100">
+    </label>
+
+    <label>Birthday:
+        <input type="date" id="newBirthday">
+    </label>
+
+    <label>Banned:
+        <select id="newBanned">
+            <option value="false">false</option>
+            <option value="true">true</option>
+        </select>
+    </label>
+
+    <button id="createPlayerBtn">Save</button>
+</div>
 
 <script>
-    document.addEventListener("DOMContentLoaded", function () {
+    $(document).ready(function () {
+        let currentPage = 1;
+        let totalRecords = 0;
+        let recordsPerPage = 3;
 
-        fetch('/rest/players')
-            .then(response => {
-            if (!response.ok) {
-                throw new Error('Ошибка при получении данных');
-            }
-            return response.json();
-        })
-            .then(data => {
-            const table = document.getElementById("charactersTable");
-            const tbody = document.createElement("tbody");
+        const RACES = [
+            'HUMAN',
+            'DWARF',
+            'ELF',
+            'GIANT',
+            'ORC',
+            'TROLL',
+            'HOBBIT'
+        ];
 
-            data.forEach((char, index) => {
-                const row = document.createElement("tr");
+        const PROFESSIONS = [
+            'WARRIOR',
+            'ROGUE',
+            'SORCERER',
+            'CLERIC',
+            'PALADIN',
+            'NAZGUL',
+            'WARLOCK',
+            'DRUID'
+        ];
 
-                row.innerHTML = `
-                    <td>${char.id ?? index + 1}</td>
-                    <td>${char.name}</td>
-                    <td>${char.title}</td>
-                    <td>${char.race}</td>
-                    <td>${char.profession}</td>
-                    <td>${char.level}</td>
-                    <td>${char.birthday}</td>
-                    <td>${char.banned ? "Yes" : "No"}</td>
+        const $tableBody = $('#charactersTable tbody');
+        const $pagination = $('#pagination');
+        const $recordsSelect = $('#recordsPerPage');
+
+        for(let i=3; i<=20; i+=1){
+            $recordsSelect.append(`<option value="${i}">${i}</option>`);
+        }
+        $recordsSelect.val(recordsPerPage);
+
+        function fetchTotalRecords() {
+            return $.ajax({
+                url: '/rest/players/count',
+                method: 'GET',
+                dataType: 'json'
+            }).done(function(data) {
+                totalRecords = typeof data === 'number' ? data : data.count;
+            });
+        }
+
+        function loadPage(page) {
+            currentPage = page;
+
+            $.ajax({
+                url: '/rest/players',
+                method: 'GET',
+                dataType: 'json',
+                data: {
+                    pageNumber: currentPage - 1,
+                    pageSize: recordsPerPage
+                },
+                success: function (data) {
+                    $tableBody.empty();
+
+                    data.forEach(function (char, index) {
+                        const row = `
+                    <tr data-id="${char.id}">
+                        <td>${char.id}</td>
+                        <td class="editable" data-field="name">${char.name}</td>
+                        <td class="editable" data-field="title">${char.title}</td>
+                        <td class="editable" data-field="race">${char.race}</td>
+                        <td class="editable" data-field="profession">${char.profession}</td>
+                        <td>${char.level}</td>
+                        <td>${new Date(char.birthday).toLocaleDateString()}</td>
+                        <td class="editable" data-field="banned">${char.banned}</td>
+                        <td class="action-cell edit" data-id="${char.id}">
+                            <img src="/img/edit.png" alt="">
+                        </td>
+                        <td class="action-cell delete" data-id="${char.id}">
+                            <img src="/img/delete.png" alt="">
+                        </td>
+                    </tr>
                 `;
+                        $tableBody.append(row);
+                    });
 
-                tbody.appendChild(row);
+                    renderPagination();
+                },
+                error: function () {
+                    alert('Error loading');
+                }
+            });
+        }
+
+        function buildSelect(values, selected) {
+            let options = values.map(v =>
+            `<option value="${v}" ${v === selected ? 'selected' : ''}>${v}</option>`
+            ).join('');
+
+            return `<select>${options}</select>`;
+        }
+
+        function enableEditMode($row) {
+            $row.addClass('editing');
+
+            $row.find('.editable').each(function () {
+                const field = $(this).data('field');
+                const value = $(this).text().trim();
+
+                if (field === 'race') {
+                    $(this).html(buildSelect(RACES, value));
+                }
+                else if (field === 'profession') {
+                    $(this).html(buildSelect(PROFESSIONS, value));
+                }
+                else if (field === 'banned') {
+                    $(this).html(`
+                <select>
+                    <option value="true" ${value === 'true' ? 'selected' : ''}>true</option>
+                    <option value="false" ${value === 'false' ? 'selected' : ''}>false</option>
+                </select>
+            `);
+                }
+                else {
+                    $(this).html(`<input type="text" value="${value}">`);
+                }
             });
 
-            table.appendChild(tbody);
-        })
-            .catch(error => {
-            console.error('Ошибка:', error);
+            $row.find('.action-cell.delete').hide();
+            $row.find('.action-cell.edit img').attr('src', '/img/save.png');
+        }
+
+        function saveRow($row) {
+            const id = $row.data('id');
+            const payload = {};
+
+            $row.find('.editable').each(function () {
+                const field = $(this).data('field');
+
+                if (field === 'banned') {
+                    payload[field] = $(this).find('select').val() === 'true';
+                }
+                else if (field === 'race' || field === 'profession') {
+                    payload[field] = $(this).find('select').val();
+                }
+                else {
+                    payload[field] = $(this).find('input').val();
+                }
+            });
+
+            $.ajax({
+                url: `/rest/players/${id}`,
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function () {
+                    loadPage(currentPage);
+                },
+                error: function () {
+                    alert('Error saving');
+                }
+            });
+        }
+
+        $(document).on('click', '.action-cell.edit img', function () {
+            const $row = $(this).closest('tr');
+            const isEditing = $row.hasClass('editing');
+
+            if (!isEditing) {
+                enableEditMode($row);
+            } else {
+                saveRow($row);
+            }
         });
+
+        function renderPagination() {
+            $pagination.empty();
+            const totalPages = Math.ceil(totalRecords / recordsPerPage);
+
+            for(let i=1; i<=totalPages; i++){
+                const btn = $('<button>')
+                    .text(i)
+                    .addClass(i === currentPage ? 'active' : '')
+                    .click(function() {
+                    loadPage(i);
+                });
+                $pagination.append(btn);
+            }
+        }
+
+        function deletePlayer(id) {
+            $.ajax({
+                url: `/rest/players/${id}`,
+                method: 'DELETE',
+                success: function () {
+                    fetchTotalRecords().then(() => {
+                        const totalPages = Math.ceil(totalRecords / recordsPerPage);
+                        if (currentPage > totalPages) {
+                            currentPage = Math.max(1, totalPages);
+                        }
+                        loadPage(currentPage);
+                    });
+                },
+                error: function () {
+                    alert('Error deleting account');
+                }
+            });
+        }
+
+        $(document).on('click', '.action-cell.delete img', function () {
+            const id = $(this).closest('.action-cell').data('id');
+            deletePlayer(id);
+        });
+
+        $recordsSelect.change(function() {
+            recordsPerPage = parseInt($(this).val());
+            currentPage = 1;
+            loadPage(currentPage);
+        });
+
+        function fillEnumSelect($select, values) {
+            $select.empty();
+            values.forEach(v => {
+                $select.append(`<option value="${v}">${v}</option>`);
+            });
+        }
+
+        fillEnumSelect($('#newRace'), RACES);
+        fillEnumSelect($('#newProfession'), PROFESSIONS);
+
+        $('#createPlayerBtn').click(function () {
+            const player = {
+                name: $('#newName').val().trim(),
+                title: $('#newTitle').val().trim(),
+                race: $('#newRace').val(),
+                profession: $('#newProfession').val(),
+                level: parseInt($('#newLevel').val()),
+                birthday: new Date($('#newBirthday').val()).getTime(),
+                banned: $('#newBanned').val() === 'true'
+            };
+
+            if (player.name.length < 1 || player.name.length > 12) {
+                alert('Name must be between 1 and 12 characters');
+                return;
+            }
+
+            if (player.title.length < 1 || player.title.length > 30) {
+                alert('Title must be between 1 and 30 characters');
+                return;
+            }
+
+            if (isNaN(player.level) || player.level < 1 || player.level > 100) {
+                alert('Level must be between 1 and 100');
+                return;
+            }
+
+            if (!$('#newBirthday').val()) {
+                alert('Birthday is required');
+                return;
+            }
+
+            $.ajax({
+                url: '/rest/players',
+                method: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(player),
+                success: function () {
+                    clearCreateForm();
+                    fetchTotalRecords().then(() => loadPage(currentPage));
+                },
+                error: function () {
+                    alert('Error creating player. Check the data');
+                }
+            });
+        });
+
+        function clearCreateForm() {
+            $('#newName').val('');
+            $('#newTitle').val('');
+            $('#newLevel').val('');
+            $('#newBirthday').val('');
+            $('#newBanned').val('false');
+            $('#newRace').prop('selectedIndex', 0);
+            $('#newProfession').prop('selectedIndex', 0);
+        }
+
+        fetchTotalRecords().then(() => loadPage(currentPage));
     });
 </script>
 </body>
